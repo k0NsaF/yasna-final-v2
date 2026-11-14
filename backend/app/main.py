@@ -21,6 +21,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Разрешаем запросы отовсюду (важно для Render и Hugging Face)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(master.router)
 app.include_router(family.router)
 app.include_router(lessons.router)
@@ -31,15 +40,6 @@ app.include_router(payments.router)
 app.include_router(receipts.router)
 app.include_router(notifications.router)
 app.include_router(reports.router)
-
-# Разрешаем запросы с любых адресов (для локальной разработки и тестов)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/")
