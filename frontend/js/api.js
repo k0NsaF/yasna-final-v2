@@ -1,5 +1,5 @@
 
-const API_URL = "http://localhost:8000/api";
+const API_URL = "https://yasna-backend.onrender.com/api"; 
 
 // ==========================================
 // ОСНОВНОЙ ЗАПРОС К API
