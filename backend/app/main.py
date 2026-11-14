@@ -21,7 +21,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Разрешаем запросы отовсюду (важно для Render и Hugging Face)
+# ВАЖНО: Настройки CORS для работы с Hugging Face
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
