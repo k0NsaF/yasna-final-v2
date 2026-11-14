@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ясна | Панель мастера</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <header style="background: white; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 50;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="img/yasna-logo.jpg" alt="Ясна" style="height: 45px; border-radius: 8px;">
+            <h1 style="font-size: 20px; margin: 0;">Панель управления</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span style="color: var(--gray); font-size: 14px;">Мастер: Денис</span>
+            <button type="button" class="btn btn-gray" style="padding: 8px 16px;" onclick="logout()">Выйти</button>
+        </div>
+    </header>
+
+    <nav style="background: white; padding: 0 20px; display: flex; gap: 20px; border-bottom: 1px solid var(--border); overflow-x: auto;">
+        <button type="button" class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')" style="background: none; border: none; padding: 15px 5px; cursor: pointer; font-weight: 600; color: var(--dark); border-bottom: 3px solid var(--yellow); white-space: nowrap;">Главная</button>
+        <button type="button" class="nav-btn" data-tab="schedule" onclick="switchTab('schedule')" style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">Расписание</button>
+        <button type="button" class="nav-btn" data-tab="attendance" onclick="switchTab('attendance')" style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">Посещаемость</button>
+        <button type="button" class="nav-btn" data-tab="families" onclick="switchTab('families')" style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">Семьи</button>
+        <button type="button" class="nav-btn" data-tab="finance" onclick="switchTab('finance')" style="background: none; border: none; cursor: pointer; padding: 15px 5px; color: var(--gray); white-space: nowrap;">Абонементы и Оплаты</button>
+    </nav>
+
+    <main style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+        
+        <section id="tab-dashboard">
+            <h2 style="margin-bottom: 20px; font-size: 22px;">Сводка на сегодня</h2>
+            <div class="grid">
+                <div class="stat-card">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Занятий сегодня</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-lessons">0</div>
+                </div>
+                <div class="stat-card">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Записано детей</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-children">0</div>
+                </div>
+                <div class="stat-card red">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Заканчивается абонемент</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-ending">0</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-schedule" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">Расписание</h2>
+                <button type="button" class="btn" onclick="openModal('modal-create-lesson')">+ Создать занятие</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Дата и время</th><th>Название</th><th>Мест</th><th>Статус</th></tr></thead>
+                    <tbody id="schedule-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-attendance" style="display: none;">
+            <h2 style="font-size: 22px; margin-bottom: 20px;">Журнал посещаемости</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Ребенок</th><th>Занятие</th><th>Статус</th><th>Действие</th></tr></thead>
+                    <tbody id="attendance-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-families" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">Семьи и дети</h2>
+                <button type="button" class="btn" onclick="openModal('modal-create-family')">+ Добавить семью</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Семья</th><th>Дети</th><th>Ссылка</th></tr></thead>
+                    <tbody id="families-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-finance" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">Абонементы</h2>
+                <button type="button" class="btn" onclick="openModal('modal-create-subscription')">+ Создать абонемент</button>
+            </div>
+            <div class="table-wrap" style="margin-bottom: 35px;">
+                <table>
+                    <thead><tr><th>№</th><th>Семья</th><th>Название</th><th>Остаток</th><th>Стоимость</th></tr></thead>
+                    <tbody id="subscriptions-list"></tbody>
+                </table>
+            </div>
+            <h2 style="font-size: 22px; margin-bottom: 20px;">Платежи</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Семья</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
+                    <tbody id="finance-list"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- МОДАЛКА: СОЗДАНИЕ СЕМЬИ -->
+    <div class="modal-overlay" id="modal-create-family">
+        <div class="modal-content">
+            <h3>Новая семья</h3>
+            <div class="form-group"><label>Имя родителя</label><input type="text" class="form-input" id="family-name" required value="Анна Иванова"></div>
+            <div class="form-group"><label>Телефон</label><input type="text" class="form-input" id="family-phone" required value="+79991234567"></div>
+            <div class="form-group"><label>Имя ребенка</label><input type="text" class="form-input" id="child-name" required value="Миша"></div>
+            <div class="form-group"><label>Фамилия ребенка</label><input type="text" class="form-input" id="child-lastname" required value="Иванов"></div>
+            <div class="form-group"><label>Дата рождения</label><input type="date" class="form-input" id="child-birthdate" required value="2015-01-01"></div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-block" onclick="createFamily()">Создать</button>
+                <button type="button" class="btn btn-gray btn-block" onclick="closeModal('modal-create-family')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: СОЗДАНИЕ ЗАНЯТИЯ -->
+    <div class="modal-overlay" id="modal-create-lesson">
+        <div class="modal-content">
+            <h3>Новое занятие</h3>
+            <div class="form-group"><label>Название</label><input type="text" class="form-input" id="lesson-title" required value="Столярка (Новички)"></div>
+            <div class="form-group"><label>Дата и время</label><input type="datetime-local" class="form-input" id="lesson-date" required></div>
+            <div class="form-group"><label>Количество мест</label><input type="number" class="form-input" id="lesson-capacity" required value="6"></div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-block" onclick="createLesson()">Создать</button>
+                <button type="button" class="btn btn-gray btn-block" onclick="closeModal('modal-create-lesson')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: СОЗДАНИЕ АБОНЕМЕНТА -->
+    <div class="modal-overlay" id="modal-create-subscription">
+        <div class="modal-content">
+            <h3>Новый абонемент</h3>
+            <div class="form-group"><label>Семья</label><select class="form-input" id="subscription-family" required></select></div>
+            <div class="form-group"><label>Название</label><input type="text" class="form-input" id="subscription-title" required value="Абонемент на 8 занятий"></div>
+            <div class="form-group"><label>Количество занятий</label><input type="number" class="form-input" id="subscription-total" required value="8"></div>
+            <div class="form-group"><label>Стоимость</label><input type="number" class="form-input" id="subscription-price" required value="5000"></div>
+            <div class="form-group"><label>Действует до</label><input type="datetime-local" class="form-input" id="subscription-expires"></div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" class="btn btn-block" onclick="createSubscription()">Создать</button>
+                <button type="button" class="btn btn-gray btn-block" onclick="closeModal('modal-create-subscription')">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: ССЫЛКА -->
+    <div class="modal-overlay" id="modal-show-link">
+        <div class="modal-content">
+            <h3>Ссылка для родителя</h3>
+            <p style="color: #EF4444; font-size: 14px; font-weight: bold;">Скопируйте её сейчас! Повторно она не отобразится.</p>
+            <input type="text" class="form-input" id="family-link-input" readonly style="margin-bottom: 15px; background: #F3F4F6;">
+            <button type="button" class="btn btn-block" onclick="copyLinkAndClose()">Скопировать и закрыть</button>
+        </div>
+    </div>
+
+    <script src="js/ui.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/master.js"></script>
+</body>
+</html>

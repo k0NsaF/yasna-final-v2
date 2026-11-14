@@ -1,0 +1,2612 @@
+﻿
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\database.py ---
+
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Р“РґРµ Р±СѓРґРµС‚ С…СЂР°РЅРёС‚СЊСЃСЏ РЅР°С€Р° Р±Р°Р·Р° РґР°РЅРЅС‹С….
+# Р¤Р°Р№Р» yasna.db РїРѕСЏРІРёС‚СЃСЏ РІ РєРѕСЂРЅРµРІРѕР№ РїР°РїРєРµ РїСЂРѕРµРєС‚Р°.
+DATABASE_URL = "sqlite:///./yasna.db"
+
+# РЎРѕР·РґР°С‘Рј РїРѕРґРєР»СЋС‡РµРЅРёРµ Рє Р±Р°Р·Рµ РґР°РЅРЅС‹С….
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False}
+)
+
+# РЎРѕР·РґР°С‘Рј С„Р°Р±СЂРёРєСѓ РїРѕРґРєР»СЋС‡РµРЅРёР№ Рє Р±Р°Р·Рµ.
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+# РћР±С‰РёР№ РєР»Р°СЃСЃ, РѕС‚ РєРѕС‚РѕСЂРѕРіРѕ Р±СѓРґСѓС‚ СЃРѕР·РґР°РІР°С‚СЊСЃСЏ С‚Р°Р±Р»РёС†С‹.
+Base = declarative_base()
+
+
+# Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ РІ API.
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\main.py ---
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .database import Base, engine
+from . import models
+from .routers import (
+    master,
+    family,
+    lessons,
+    bookings,
+    attendance,
+    subscriptions,
+    payments,
+    receipts,
+    notifications,
+    reports
+)
+
+app = FastAPI(
+    title="РЇСЃРЅР° API",
+    description="РЎРёСЃС‚РµРјР° Р·Р°РїРёСЃРё Рё СѓС‡С‘С‚Р° Р·Р°РЅСЏС‚РёР№ СЃС‚РѕР»СЏСЂРЅРѕР№ РјР°СЃС‚РµСЂСЃРєРѕР№",
+    version="1.0.0"
+)
+
+app.include_router(master.router)
+app.include_router(family.router)
+app.include_router(lessons.router)
+app.include_router(bookings.router)
+app.include_router(attendance.router)
+app.include_router(subscriptions.router)
+app.include_router(payments.router)
+app.include_router(receipts.router)
+app.include_router(notifications.router)
+app.include_router(reports.router)
+
+# Р’СЂРµРјРµРЅРЅРѕ СЂР°Р·СЂРµС€Р°РµРј Р»РѕРєР°Р»СЊРЅРѕРјСѓ frontend РѕР±СЂР°С‰Р°С‚СЊСЃСЏ Рє backend.
+# РџРµСЂРµРґ РїСѓР±Р»РёС‡РЅС‹Рј СЂР°Р·РјРµС‰РµРЅРёРµРј СЃРїРёСЃРѕРє Р°РґСЂРµСЃРѕРІ РЅСѓР¶РЅРѕ РѕРіСЂР°РЅРёС‡РёС‚СЊ.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+def home():
+    return {
+        "project": "РЇСЃРЅР°",
+        "message": "РЎРµСЂРІРµСЂ СЂР°Р±РѕС‚Р°РµС‚"
+    }
+
+
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "ok",
+        "project": "yasna"
+    }
+
+
+@app.on_event("startup")
+def create_database_tables():
+    Base.metadata.create_all(bind=engine)
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\models.py ---
+
+
+from datetime import datetime
+
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    Text,
+    Numeric
+)
+
+from sqlalchemy.orm import relationship
+
+from .database import Base
+
+
+# 1. РЎРµРјСЊРё
+class Family(Base):
+    __tablename__ = "families"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    phone = Column(String(30), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    children = relationship("Child", back_populates="family")
+    tokens = relationship("FamilyToken", back_populates="family")
+
+
+# 2. Р”РµС‚Рё
+class Child(Base):
+    __tablename__ = "children"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=True)
+    birth_date = Column(String(20), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    family = relationship("Family", back_populates="children")
+    bookings = relationship("Booking", back_populates="child")
+
+
+# 3. Р—Р°С‰РёС‰С‘РЅРЅС‹Рµ СЃСЃС‹Р»РєРё РґР»СЏ СЂРѕРґРёС‚РµР»РµР№
+class FamilyToken(Base):
+    __tablename__ = "family_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+
+    family = relationship("Family", back_populates="tokens")
+
+
+# 4. Р—Р°РЅСЏС‚РёСЏ
+class Lesson(Base):
+    __tablename__ = "lessons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    starts_at = Column(DateTime, nullable=False)
+    duration_minutes = Column(Integer, default=60)
+    capacity = Column(Integer, nullable=False)
+    price = Column(Numeric(10, 2), default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bookings = relationship("Booking", back_populates="lesson")
+
+
+# 5. Р—Р°РїРёСЃРё РґРµС‚РµР№ РЅР° Р·Р°РЅСЏС‚РёСЏ
+class Booking(Base):
+    __tablename__ = "bookings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    child_id = Column(Integer, ForeignKey("children.id"), nullable=False)
+    lesson_id = Column(Integer, ForeignKey("lessons.id"), nullable=False)
+    status = Column(String(20), default="booked")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "child_id",
+            "lesson_id",
+            name="unique_child_lesson_booking"
+        ),
+    )
+
+    child = relationship("Child", back_populates="bookings")
+    lesson = relationship("Lesson", back_populates="bookings")
+    attendance = relationship(
+        "Attendance",
+        back_populates="booking",
+        uselist=False
+    )
+
+
+# 6. РџРѕСЃРµС‰РµРЅРёСЏ
+class Attendance(Base):
+    __tablename__ = "attendance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(
+        Integer,
+        ForeignKey("bookings.id"),
+        unique=True,
+        nullable=False
+    )
+    status = Column(String(20), nullable=False)
+    marked_at = Column(DateTime, default=datetime.utcnow)
+
+    booking = relationship("Booking", back_populates="attendance")
+
+
+# 7. РСЃС‚РѕСЂРёСЏ РёР·РјРµРЅРµРЅРёСЏ РїРѕСЃРµС‰РµРЅРёР№
+class AttendanceHistory(Base):
+    __tablename__ = "attendance_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    attendance_id = Column(
+        Integer,
+        ForeignKey("attendance.id"),
+        nullable=False
+    )
+    old_status = Column(String(20), nullable=True)
+    new_status = Column(String(20), nullable=False)
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    comment = Column(Text, nullable=True)
+
+
+# 8. РђР±РѕРЅРµРјРµРЅС‚С‹
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    child_id = Column(Integer, ForeignKey("children.id"), nullable=True)
+    title = Column(String(150), nullable=False)
+    total_lessons = Column(Integer, nullable=False)
+    used_lessons = Column(Integer, default=0)
+    price = Column(Numeric(10, 2), nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# 9. РСЃС‚РѕСЂРёСЏ СЃРїРёСЃР°РЅРёР№ Рё РЅР°С‡РёСЃР»РµРЅРёР№ Р·Р°РЅСЏС‚РёР№
+class LessonTransaction(Base):
+    __tablename__ = "lesson_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subscription_id = Column(
+        Integer,
+        ForeignKey("subscriptions.id"),
+        nullable=False
+    )
+    booking_id = Column(
+        Integer,
+        ForeignKey("bookings.id"),
+        nullable=True
+    )
+    amount = Column(Integer, nullable=False)
+    operation = Column(String(20), nullable=False)
+    reason = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# 10. РћРїР»Р°С‚С‹
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    subscription_id = Column(
+        Integer,
+        ForeignKey("subscriptions.id"),
+        nullable=True
+    )
+    amount = Column(Numeric(10, 2), nullable=False)
+    status = Column(String(20), default="pending")
+    payment_method = Column(String(30), default="demo")
+    external_payment_id = Column(String(150), unique=True, nullable=True)
+    credited = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# 11. Р§РµРєРё
+class Receipt(Base):
+    __tablename__ = "receipts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    payment_id = Column(
+        Integer,
+        ForeignKey("payments.id"),
+        nullable=False
+    )
+    file_path = Column(String(500), nullable=True)
+    receipt_url = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# 12. РЈРІРµРґРѕРјР»РµРЅРёСЏ
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\schemas.py ---
+
+
+from datetime import datetime
+from decimal import Decimal
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- РЎР•РњР¬Р ----------
+
+class FamilyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
+
+
+class FamilyResponse(ORMModel):
+    id: int
+    name: str
+    phone: str | None = None
+    created_at: datetime
+
+
+# ---------- Р”Р•РўР ----------
+
+class ChildCreate(BaseModel):
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    birth_date: str | None = None
+
+
+class ChildResponse(ORMModel):
+    id: int
+    family_id: int
+    first_name: str
+    last_name: str | None = None
+    birth_date: str | None = None
+    created_at: datetime
+
+
+# ---------- Р—РђРќРЇРўРРЇ ----------
+
+class LessonCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    starts_at: datetime
+    duration_minutes: int = Field(default=60, ge=1, le=600)
+    capacity: int = Field(ge=1, le=100)
+    price: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class LessonResponse(ORMModel):
+    id: int
+    title: str
+    description: str | None = None
+    starts_at: datetime
+    duration_minutes: int
+    capacity: int
+    price: Decimal
+    is_active: bool
+    created_at: datetime
+
+
+class LessonPublicResponse(LessonResponse):
+    booked_count: int
+    free_places: int
+
+
+# ---------- Р—РђРџРРЎР ----------
+
+class BookingCreate(BaseModel):
+    child_id: int = Field(gt=0)
+    lesson_id: int = Field(gt=0)
+
+
+class BookingResponse(ORMModel):
+    id: int
+    child_id: int
+    lesson_id: int
+    status: str
+    created_at: datetime
+
+
+# ---------- РџРћРЎР•Р©РђР•РњРћРЎРўР¬ ----------
+
+class AttendanceUpdate(BaseModel):
+    status: str = Field(pattern="^(attended|missed|cancelled)$")
+    comment: str | None = None
+
+
+class AttendanceResponse(ORMModel):
+    id: int
+    booking_id: int
+    status: str
+    marked_at: datetime | None = None
+
+
+class AttendanceHistoryResponse(ORMModel):
+    id: int
+    attendance_id: int
+    old_status: str | None = None
+    new_status: str
+    changed_at: datetime
+    comment: str | None = None
+
+
+# ---------- РђР‘РћРќР•РњР•РќРўР« ----------
+
+class SubscriptionCreate(BaseModel):
+    family_id: int = Field(gt=0)
+    child_id: int | None = Field(default=None, gt=0)
+    title: str = Field(min_length=1, max_length=150)
+    total_lessons: int = Field(ge=1)
+    price: Decimal = Field(default=Decimal("0"), ge=0)
+    expires_at: datetime | None = None
+
+
+class SubscriptionResponse(ORMModel):
+    id: int
+    family_id: int
+    child_id: int | None = None
+    title: str
+    total_lessons: int
+    used_lessons: int
+    price: Decimal
+    expires_at: datetime | None = None
+    is_active: bool
+    created_at: datetime
+
+
+class SubscriptionBalance(BaseModel):
+    total_lessons: int
+    used_lessons: int
+    remaining_lessons: int
+    money_balance: Decimal = Decimal("0")
+
+
+# ---------- РџР›РђРўР•Р–Р ----------
+
+class PaymentCreate(BaseModel):
+    family_id: int = Field(gt=0)
+    subscription_id: int | None = Field(default=None, gt=0)
+    amount: Decimal = Field(gt=0)
+    payment_method: str = Field(default="demo", max_length=30)
+
+
+class PaymentResponse(ORMModel):
+    id: int
+    family_id: int
+    subscription_id: int | None = None
+    amount: Decimal
+    status: str
+    payment_method: str
+    external_payment_id: str | None = None
+    credited: bool
+    created_at: datetime
+
+
+class PaymentStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(pending|succeeded|failed|cancelled)$")
+
+
+# ---------- Р§Р•РљР / РљР’РРўРђРќР¦РР ----------
+
+class ReceiptLinkCreate(BaseModel):
+    receipt_url: HttpUrl
+
+
+class ReceiptResponse(ORMModel):
+    id: int
+    payment_id: int
+    file_path: str | None = None
+    receipt_url: str | None = None
+    created_at: datetime
+
+
+# ---------- РЈР’Р•Р”РћРњР›Р•РќРРЇ ----------
+
+class NotificationResponse(ORMModel):
+    id: int
+    family_id: int
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+
+# ---------- РђР’РўРћР РР—РђР¦РРЇ ----------
+
+class MasterLogin(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+class MasterLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class FamilyLinkResponse(BaseModel):
+    family_id: int
+    access_token: str
+    token_type: str = "bearer"
+    message: str = "РЎРѕС…СЂР°РЅРёС‚Рµ СЃСЃС‹Р»РєСѓ: С‚РѕРєРµРЅ РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РѕРґРёРЅ СЂР°Р·."
+
+
+# ---------- РћР‘Р©РР• РћРўР’Р•РўР« ----------
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    project: str
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\security.py ---
+
+
+import hashlib
+import hmac
+import os
+import secrets
+import time
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from .database import get_db
+from .models import FamilyToken
+
+
+# Р”Р»СЏ РґРµРјРѕРЅСЃС‚СЂР°С†РёРё Р·Р°РґР°РЅ РІСЂРµРјРµРЅРЅС‹Р№ РїР°СЂРѕР»СЊ.
+# РџРѕР·Р¶Рµ Р·Р°РјРµРЅРёРј РµРіРѕ РЅР° Р·РЅР°С‡РµРЅРёРµ РёР· .env.
+MASTER_PASSWORD = os.getenv("MASTER_PASSWORD", "yasna-demo-2026")
+
+# Р’СЂРµРјРµРЅРЅС‹Рµ СЃРµСЃСЃРёРё РјР°СЃС‚РµСЂР° С…СЂР°РЅСЏС‚СЃСЏ РІ РїР°РјСЏС‚Рё СЃРµСЂРІРµСЂР°.
+# РЎСЂРѕРє РґРµР№СЃС‚РІРёСЏ РѕРґРЅРѕР№ СЃРµСЃСЃРёРё вЂ” 12 С‡Р°СЃРѕРІ.
+MASTER_SESSION_SECONDS = 12 * 60 * 60
+_master_sessions = {}
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def hash_token(token: str) -> str:
+    """Р’РѕР·РІСЂР°С‰Р°РµС‚ SHA-256-С…РµС€ С‚РѕРєРµРЅР°."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_family_token() -> tuple[str, str]:
+    """
+    РЎРѕР·РґР°С‘С‚ СЃР»СѓС‡Р°Р№РЅС‹Р№ С‚РѕРєРµРЅ СЃРµРјСЊРё.
+    Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃР°Рј С‚РѕРєРµРЅ Рё РµРіРѕ С…РµС€.
+    Р’ Р±Р°Р·Рµ СЃРѕС…СЂР°РЅСЏРµРј С‚РѕР»СЊРєРѕ С…РµС€.
+    """
+    token = secrets.token_urlsafe(32)
+    token_hash = hash_token(token)
+    return token, token_hash
+
+
+def create_master_session(password: str) -> str:
+    """РџСЂРѕРІРµСЂСЏРµС‚ РїР°СЂРѕР»СЊ РјР°СЃС‚РµСЂР° Рё СЃРѕР·РґР°С‘С‚ РІСЂРµРјРµРЅРЅСѓСЋ СЃРµСЃСЃРёСЋ."""
+    if not hmac.compare_digest(password, MASTER_PASSWORD):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="РќРµРІРµСЂРЅС‹Р№ РїР°СЂРѕР»СЊ РјР°СЃС‚РµСЂР°",
+        )
+
+    token = secrets.token_urlsafe(32)
+    _master_sessions[token] = time.time() + MASTER_SESSION_SECONDS
+    return token
+
+
+def get_current_master(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> bool:
+    """РџСЂРѕРІРµСЂСЏРµС‚ bearer-С‚РѕРєРµРЅ РјР°СЃС‚РµСЂР°."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="РўСЂРµР±СѓРµС‚СЃСЏ Р°РІС‚РѕСЂРёР·Р°С†РёСЏ РјР°СЃС‚РµСЂР°",
+        )
+
+    token = credentials.credentials
+    expires_at = _master_sessions.get(token)
+
+    if expires_at is None or expires_at < time.time():
+        _master_sessions.pop(token, None)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="РЎРµСЃСЃРёСЏ РјР°СЃС‚РµСЂР° РЅРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅР° РёР»Рё РёСЃС‚РµРєР»Р°",
+        )
+
+    return True
+
+
+def get_current_family(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+):
+    """РќР°С…РѕРґРёС‚ СЃРµРјСЊСЋ РїРѕ Р°РєС‚РёРІРЅРѕРјСѓ РїРµСЂСЃРѕРЅР°Р»СЊРЅРѕРјСѓ С‚РѕРєРµРЅСѓ."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="РўСЂРµР±СѓРµС‚СЃСЏ РїРµСЂСЃРѕРЅР°Р»СЊРЅР°СЏ СЃСЃС‹Р»РєР° СЃРµРјСЊРё",
+        )
+
+    token_hash = hash_token(credentials.credentials)
+
+    family_token = (
+        db.query(FamilyToken)
+        .filter(FamilyToken.token_hash == token_hash)
+        .first()
+    )
+
+    if (
+        family_token is None
+        or not family_token.is_active
+        or family_token.revoked_at is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="РЎСЃС‹Р»РєР° РЅРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅР° РёР»Рё РѕС‚РѕР·РІР°РЅР°",
+        )
+
+    return family_token.family
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\app\__init__.py ---
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\backend\__init__.py ---
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\css\styles.css ---
+
+/* Р¦РІРµС‚Р° РёР· Р»РѕРіРѕС‚РёРїР° */
+:root {
+    --yellow: #FFC107; 
+    --yellow-dark: #FFA000; 
+    --dark: #1A1A1A;      
+    --gray: #6B7280;      
+    --bg: #F9FAFB;        
+    --card: #FFFFFF;      
+    --border: #E5E7EB;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    background-color: var(--bg);
+    color: var(--dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Р‘Р°Р·РѕРІС‹Рµ РєРЅРѕРїРєРё */
+.btn {
+    background-color: var(--yellow);
+    color: var(--dark);
+    font-weight: 600;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.btn:hover { background-color: var(--yellow-dark); }
+.btn:disabled { background-color: #E5E7EB; color: #9CA3AF; cursor: not-allowed; }
+.btn-gray { background-color: #E5E7EB; color: var(--gray); }
+.btn-gray:hover { background-color: #D1D5DB; }
+.btn-block { display: block; width: 100%; }
+
+/* РљР°СЂС‚РѕС‡РєРё */
+.card {
+    background: var(--card);
+    padding: 24px;
+    border-radius: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+.stat-card {
+    background: var(--card);
+    padding: 24px;
+    border-radius: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    border-left: 6px solid var(--yellow);
+}
+.stat-card.red { border-left-color: #EF4444; }
+
+/* РЎРµС‚РєРё */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 40px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* Р¤РѕСЂРјС‹ */
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-size: 14px; color: var(--gray); }
+.form-input {
+    width: 100%; padding: 10px 15px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 16px; outline: none; transition: 0.2s;
+}
+.form-input:focus { border-color: var(--yellow); }
+
+/* РўР°Р±Р»РёС†С‹ */
+.table-wrap { background: white; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th { background: #F3F4F6; color: var(--gray); font-size: 14px; padding: 15px; font-weight: 600; }
+td { padding: 15px; border-top: 1px solid var(--border); }
+tr:hover td { background: #F9FAFB; }
+
+/* Р‘РµР№РґР¶Рё СЃС‚Р°С‚СѓСЃРѕРІ */
+.badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.badge-green { background: #D1FAE5; color: #065F46; }
+.badge-red { background: #FEE2E2; color: #991B1B; }
+
+/* Р’СЃРїР»С‹РІР°СЋС‰РёРµ СЃРѕРѕР±С‰РµРЅРёСЏ Рё РјРѕРґР°Р»РєРё */
+.toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--dark); color: white;
+    padding: 15px 25px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    transform: translateY(100px); opacity: 0; transition: 0.3s; z-index: 1000;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { background: #EF4444; }
+
+.modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5);
+    display: none; justify-content: center; align-items: center; z-index: 100;
+}
+.modal-overlay.active { display: flex; }
+.modal-content {
+    background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px;
+    animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\api.js ---
+
+
+const API_URL = "http://localhost:8000/api";
+
+// ==========================================
+// РћРЎРќРћР’РќРћР™ Р—РђРџР РћРЎ Рљ API
+// ==========================================
+
+async function apiRequest(path, options = {}) {
+    const headers = { ...options.headers };
+
+    // Р”Р»СЏ РѕР±С‹С‡РЅС‹С… JSON-Р·Р°РїСЂРѕСЃРѕРІ СѓРєР°Р·С‹РІР°РµРј С‚РёРї РґР°РЅРЅС‹С….
+    // Р”Р»СЏ FormData Р±СЂР°СѓР·РµСЂ СЃР°Рј СѓСЃС‚Р°РЅРѕРІРёС‚ РЅСѓР¶РЅС‹Р№ Content-Type.
+    if (!(options.body instanceof FormData)) {
+        headers["Content-Type"] =
+            headers["Content-Type"] || "application/json";
+    }
+
+    const response = await fetch(API_URL + path, {
+        ...options,
+        headers
+    });
+
+    let data = null;
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+        data = await response.json();
+    } else {
+        data = await response.text();
+    }
+
+    if (!response.ok) {
+        const message =
+            typeof data === "object" && data !== null
+                ? data.detail || "РћС€РёР±РєР° Р·Р°РїСЂРѕСЃР°"
+                : data || "РћС€РёР±РєР° Р·Р°РїСЂРѕСЃР°";
+
+        throw new Error(
+            Array.isArray(message)
+                ? message.map(item => item.msg).join(", ")
+                : message
+        );
+    }
+
+    return data;
+}
+
+
+// ==========================================
+// Р—РђРџР РћРЎР« РњРђРЎРўР•Р Рђ
+// ==========================================
+
+async function masterRequest(path, options = {}) {
+    const token = localStorage.getItem("master_token");
+
+    if (!token) {
+        throw new Error("РќРµС‚ Р°РІС‚РѕСЂРёР·Р°С†РёРё РјР°СЃС‚РµСЂР°. Р’РѕР№РґРёС‚Рµ Р·Р°РЅРѕРІРѕ.");
+    }
+
+    return apiRequest(path, {
+        ...options,
+        headers: {
+            ...options.headers,
+            "Authorization": `Bearer ${token}`
+        }
+    });
+}
+
+
+// ==========================================
+// Р—РђРџР РћРЎР« РЎР•РњР¬Р
+// ==========================================
+
+async function familyRequest(path, options = {}) {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const token =
+        urlParams.get("token") ||
+        localStorage.getItem("family_token");
+
+    if (!token) {
+        throw new Error("РќРµС‚ РїРµСЂСЃРѕРЅР°Р»СЊРЅРѕР№ СЃСЃС‹Р»РєРё СЃРµРјСЊРё.");
+    }
+
+    return apiRequest(path, {
+        ...options,
+        headers: {
+            ...options.headers,
+            "Authorization": `Bearer ${token}`
+        }
+    });
+}
+
+
+// ==========================================
+// Р—РђР“Р РЈР—РљРђ Р§Р•РљРђ
+// ==========================================
+
+// paymentId вЂ” РЅРѕРјРµСЂ РїР»Р°С‚РµР¶Р°.
+// formData вЂ” С„Р°Р№Р» С‡РµРєР°, РІС‹Р±СЂР°РЅРЅС‹Р№ РјР°СЃС‚РµСЂРѕРј.
+
+async function uploadReceipt(paymentId, formData) {
+    const token = localStorage.getItem("master_token");
+
+    if (!token) {
+        throw new Error("РќРµС‚ Р°РІС‚РѕСЂРёР·Р°С†РёРё РјР°СЃС‚РµСЂР°.");
+    }
+
+    const response = await fetch(
+        `${API_URL}/master/payments/${paymentId}/receipt/file`,
+        {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`
+            },
+            body: formData
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.detail || "РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё С‡РµРєР°");
+    }
+
+    return data;
+}
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\auth.js ---
+
+function checkAuth() {
+    const token = localStorage.getItem("master_token");
+    if (!token && !window.location.pathname.includes('login')) {
+        window.location.href = "master-login.html";
+    }
+}
+
+function logout() {
+    localStorage.removeItem("master_token");
+    window.location.href = "master-login.html";
+}
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\book.js ---
+
+
+let selectedLessonId = null;
+let selectedChildId = null;
+let childrenData = [];
+let lessonsData = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadPublicSchedule();
+});
+
+async function loadPublicSchedule() {
+    const container = document.getElementById('lessons-container');
+
+    try {
+        // Р Р°СЃРїРёСЃР°РЅРёРµ РґРѕСЃС‚СѓРїРЅРѕ РІСЃРµРј РїРѕСЃРµС‚РёС‚РµР»СЏРј
+        lessonsData = await apiRequest('/lessons');
+
+        if (!lessonsData || lessonsData.length === 0) {
+            container.innerHTML =
+                '<p style="text-align:center;color:var(--gray);">РџРѕРєР° РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… Р·Р°РЅСЏС‚РёР№</p>';
+            return;
+        }
+
+        container.innerHTML = lessonsData.map(lesson => {
+            const isFull = lesson.free_places <= 0;
+
+            return `
+                <div class="card" style="display:flex;justify-content:space-between;align-items:center;opacity:${isFull ? 0.6 : 1};">
+                    <div>
+                        <h3 style="margin:0 0 5px 0;">${lesson.title}</h3>
+                        <div style="font-size:14px;color:var(--gray);margin-bottom:5px;">
+                            рџ“… ${formatDate(lesson.starts_at)}
+                        </div>
+                        <div style="font-size:13px;">
+                            РЎРІРѕР±РѕРґРЅС‹С… РјРµСЃС‚:
+                            <b>${isFull ? 'РќРµС‚' : lesson.free_places}</b>
+                        </div>
+                    </div>
+
+                    <button
+                        class="btn ${isFull ? 'btn-gray' : ''}"
+                        ${isFull ? 'disabled' : ''}
+                        onclick="startBooking(${lesson.id})">
+                        ${isFull ? 'РњРµСЃС‚ РЅРµС‚' : 'Р—Р°РїРёСЃР°С‚СЊСЃСЏ'}
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        container.innerHTML =
+            `<p style="color:red;text-align:center;">РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё: ${error.message}</p>`;
+    }
+}
+
+async function startBooking(lessonId) {
+    selectedLessonId = lessonId;
+
+    const lesson = lessonsData.find(item => item.id === lessonId);
+
+    document.getElementById('book-lesson-info').innerText =
+        `Р—Р°РЅСЏС‚РёРµ: ${lesson ? lesson.title : ''}`;
+
+    const token = localStorage.getItem('family_token');
+
+    if (!token && !USE_MOCK) {
+        openModal('modal-public');
+        return;
+    }
+
+    try {
+        childrenData = await familyRequest('/family/children');
+
+        const list = document.getElementById('book-children-list');
+
+        if (!childrenData || childrenData.length === 0) {
+            showToast('Р’ СЃРµРјСЊРµ РїРѕРєР° РЅРµС‚ РґРµС‚РµР№', 'error');
+            return;
+        }
+
+        selectedChildId = childrenData[0].id;
+
+        list.innerHTML = childrenData.map(child => {
+            const childName = [
+                child.first_name,
+                child.last_name
+            ].filter(Boolean).join(' ');
+
+            return `
+                <button
+                    class="btn btn-gray btn-block"
+                    onclick="selectChildForBook(${child.id})">
+                    ${childName || 'РРјСЏ РЅРµ СѓРєР°Р·Р°РЅРѕ'}
+                </button>
+            `;
+        }).join('');
+
+        selectChildForBook(selectedChildId);
+        openModal('modal-book');
+
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+function selectChildForBook(id) {
+    selectedChildId = id;
+
+    const buttons = document.querySelectorAll('#book-children-list button');
+
+    buttons.forEach((button, index) => {
+        if (childrenData[index].id === id) {
+            button.classList.remove('btn-gray');
+        } else {
+            button.classList.add('btn-gray');
+        }
+    });
+}
+
+async function confirmBooking() {
+    if (!selectedChildId) {
+        showToast('Р’С‹Р±РµСЂРёС‚Рµ СЂРµР±С‘РЅРєР°', 'error');
+        return;
+    }
+
+    try {
+        await familyRequest('/family/bookings', {
+            method: 'POST',
+            body: JSON.stringify({
+                child_id: selectedChildId,
+                lesson_id: selectedLessonId
+            })
+        });
+
+        closeModal('modal-book');
+        showToast('Р РµР±С‘РЅРѕРє СѓСЃРїРµС€РЅРѕ Р·Р°РїРёСЃР°РЅ!');
+        await loadPublicSchedule();
+
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\family.js ---
+
+
+let currentChildId = null;
+let childrenData = [];
+
+
+// ==========================================
+// РџР•Р Р’РћРќРђР§РђР›Р¬РќРђРЇ Р—РђР“Р РЈР—РљРђ
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    if (token) {
+        localStorage.setItem('family_token', token);
+
+        window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+        );
+    }
+
+    const familyToken = localStorage.getItem('family_token');
+    const mockMode = typeof USE_MOCK !== 'undefined' && USE_MOCK;
+
+    if (!familyToken && !mockMode) {
+        alert('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰С‘РЅ. РџРµСЂРµР№РґРёС‚Рµ РїРѕ РїРµСЂСЃРѕРЅР°Р»СЊРЅРѕР№ СЃСЃС‹Р»РєРµ.');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    await loadFamilyData();
+});
+
+
+// ==========================================
+// Р—РђР“Р РЈР—РљРђ Р”РђРќРќР«РҐ РЎР•РњР¬Р
+// ==========================================
+
+async function loadFamilyData() {
+    try {
+        const [family, children, balance] = await Promise.all([
+            familyRequest('/family/me'),
+            familyRequest('/family/children'),
+            familyRequest('/family/subscriptions/balance')
+        ]);
+
+        document.getElementById('family-title').innerText =
+            family.name || 'Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚';
+
+        childrenData = Array.isArray(children) ? children : [];
+
+        renderChildrenTabs();
+
+        document.getElementById('balance-lessons').innerText =
+            balance.remaining_lessons ?? 0;
+
+        document.getElementById('balance-money').innerText =
+            formatMoney(balance.money_balance ?? 0);
+
+        await Promise.all([
+            loadUpcomingLessons(),
+            loadHistory()
+        ]);
+
+    } catch (err) {
+        showToast(
+            'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РґР°РЅРЅС‹С…: ' + err.message,
+            'error'
+        );
+    }
+}
+
+
+// ==========================================
+// Р’РЎРџРћРњРћР“РђРўР•Р›Р¬РќР«Р• Р¤РЈРќРљР¦РР
+// ==========================================
+
+function getChildName(child) {
+    return [
+        child.first_name,
+        child.last_name
+    ].filter(Boolean).join(' ') || 'Р РµР±С‘РЅРѕРє';
+}
+
+
+function escapeFamilyHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+
+        return entities[char];
+    });
+}
+
+
+function getBookingStatus(status) {
+    const statuses = {
+        booked: 'Р—Р°РїРёСЃР°РЅ',
+        cancelled: 'РћС‚РјРµРЅРµРЅР°'
+    };
+
+    return statuses[status] || status || 'РќРµРёР·РІРµСЃС‚РЅРѕ';
+}
+
+
+// ==========================================
+// РџР•Р Р•РљР›Р®Р§Р•РќРР• Р”Р•РўР•Р™
+// ==========================================
+
+function renderChildrenTabs() {
+    const container = document.getElementById('children-tabs');
+
+    if (!container) return;
+
+    if (childrenData.length === 0) {
+        currentChildId = null;
+
+        container.innerHTML =
+            '<p style="color: var(--gray);">Р”РµС‚Рё РїРѕРєР° РЅРµ РґРѕР±Р°РІР»РµРЅС‹</p>';
+
+        return;
+    }
+
+    if (!childrenData.some(child => Number(child.id) === Number(currentChildId))) {
+        currentChildId = childrenData[0].id;
+    }
+
+    container.innerHTML = childrenData.map(child => {
+        const isActive =
+            Number(child.id) === Number(currentChildId);
+
+        return `
+            <button
+                class="btn ${isActive ? '' : 'btn-gray'}"
+                style="padding: 8px 16px; font-size: 14px;"
+                onclick="selectChild(${Number(child.id)})"
+            >
+                ${escapeFamilyHtml(getChildName(child))}
+            </button>
+        `;
+    }).join('');
+}
+
+
+async function selectChild(id) {
+    currentChildId = Number(id);
+
+    renderChildrenTabs();
+
+    await loadUpcomingLessons();
+}
+
+
+// ==========================================
+// Р›РР§РќР«Р• Р—РђРџРРЎР Р Р•Р‘РЃРќРљРђ
+// ==========================================
+
+async function loadUpcomingLessons() {
+    const container = document.getElementById('upcoming-lessons');
+
+    if (!container) return;
+
+    if (!currentChildId) {
+        container.innerHTML = `
+            <p style="color: var(--gray);">
+                РЎРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ СЂРµР±С‘РЅРєР° РІ СЃРµРјСЊСЋ
+            </p>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <p style="color: var(--gray);">
+            Р—Р°РіСЂСѓР¶Р°РµРј РІР°С€Рё Р·Р°РїРёСЃРё...
+        </p>
+    `;
+
+    try {
+        // РџРѕР»СѓС‡Р°РµРј Р·Р°РїРёСЃРё РІСЃРµР№ СЃРµРјСЊРё Рё СЃРїРёСЃРѕРє Р·Р°РЅСЏС‚РёР№.
+        const [bookings, lessons] = await Promise.all([
+            familyRequest('/family/bookings'),
+            familyRequest('/lessons')
+        ]);
+
+        const safeBookings = Array.isArray(bookings) ? bookings : [];
+        const safeLessons = Array.isArray(lessons) ? lessons : [];
+
+        // РЎРѕР·РґР°С‘Рј С‚Р°Р±Р»РёС†Сѓ Р·Р°РЅСЏС‚РёР№ РґР»СЏ Р±С‹СЃС‚СЂРѕРіРѕ РїРѕРёСЃРєР° РїРѕ ID.
+        const lessonsMap = new Map(
+            safeLessons.map(lesson => [
+                Number(lesson.id),
+                lesson
+            ])
+        );
+
+        // РћСЃС‚Р°РІР»СЏРµРј С‚РѕР»СЊРєРѕ Р·Р°РїРёСЃРё РІС‹Р±СЂР°РЅРЅРѕРіРѕ СЂРµР±С‘РЅРєР°.
+        const childBookings = safeBookings
+            .filter(booking =>
+                Number(booking.child_id) === Number(currentChildId)
+            )
+            .sort((a, b) => {
+                const lessonA = lessonsMap.get(Number(a.lesson_id));
+                const lessonB = lessonsMap.get(Number(b.lesson_id));
+
+                const dateA = lessonA
+                    ? new Date(lessonA.starts_at).getTime()
+                    : 0;
+
+                const dateB = lessonB
+                    ? new Date(lessonB.starts_at).getTime()
+                    : 0;
+
+                return dateA - dateB;
+            });
+
+        if (childBookings.length === 0) {
+            container.innerHTML = `
+                <p style="color: var(--gray);">
+                    РЈ СЌС‚РѕРіРѕ СЂРµР±С‘РЅРєР° РїРѕРєР° РЅРµС‚ Р·Р°РїРёСЃРµР№
+                </p>
+            `;
+            return;
+        }
+
+        container.innerHTML = childBookings.map(booking => {
+            const lesson = lessonsMap.get(Number(booking.lesson_id));
+
+            const title = lesson
+                ? lesson.title
+                : `Р—Р°РЅСЏС‚РёРµ в„–${booking.lesson_id}`;
+
+            const date = lesson
+                ? formatDate(lesson.starts_at)
+                : 'РРЅС„РѕСЂРјР°С†РёСЏ Рѕ Р·Р°РЅСЏС‚РёРё РЅРµРґРѕСЃС‚СѓРїРЅР°';
+
+            const startsAt = lesson
+                ? new Date(lesson.starts_at).getTime()
+                : 0;
+
+            const canCancel =
+                booking.status === 'booked' &&
+                startsAt > Date.now();
+
+            const statusText = getBookingStatus(booking.status);
+
+            const statusColor = booking.status === 'cancelled'
+                ? '#DC2626'
+                : '#16A34A';
+
+            return `
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 12px;
+                    background: #F9FAFB;
+                    border-radius: 10px;
+                    gap: 12px;
+                    flex-wrap: wrap;
+                ">
+                    <div>
+                        <div style="font-weight: bold;">
+                            ${escapeFamilyHtml(title)}
+                        </div>
+
+                        <div style="
+                            font-size: 13px;
+                            color: var(--gray);
+                            margin-top: 4px;
+                        ">
+                            ${escapeFamilyHtml(date)}
+                        </div>
+
+                        <div style="
+                            font-size: 13px;
+                            color: ${statusColor};
+                            margin-top: 4px;
+                        ">
+                            РЎС‚Р°С‚СѓСЃ: ${escapeFamilyHtml(statusText)}
+                        </div>
+                    </div>
+
+                    ${canCancel ? `
+                        <button
+                            class="btn btn-gray"
+                            onclick="cancelBooking(${Number(booking.id)})"
+                        >
+                            РћС‚РјРµРЅРёС‚СЊ Р·Р°РїРёСЃСЊ
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р·Р°РїРёСЃРµР№:', err);
+
+        container.innerHTML = `
+            <p style="color: red;">
+                РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РІР°С€Рё Р·Р°РїРёСЃРё:
+                ${escapeFamilyHtml(err.message)}
+            </p>
+        `;
+    }
+}
+
+
+// ==========================================
+// РћРўРњР•РќРђ Р—РђРџРРЎР
+// ==========================================
+
+async function cancelBooking(bookingId) {
+    const confirmed = confirm(
+        'Р’С‹ РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ С…РѕС‚РёС‚Рµ РѕС‚РјРµРЅРёС‚СЊ Р·Р°РїРёСЃСЊ РЅР° Р·Р°РЅСЏС‚РёРµ?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        await familyRequest(
+            `/family/bookings/${bookingId}`,
+            {
+                method: 'DELETE'
+            }
+        );
+
+        showToast('Р—Р°РїРёСЃСЊ СѓСЃРїРµС€РЅРѕ РѕС‚РјРµРЅРµРЅР°');
+
+        await loadUpcomingLessons();
+
+    } catch (err) {
+        showToast(
+            'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РјРµРЅРёС‚СЊ Р·Р°РїРёСЃСЊ: ' + err.message,
+            'error'
+        );
+    }
+}
+
+
+// ==========================================
+// РРЎРўРћР РРЇ РџР›РђРўР•Р–Р•Р™ Р Р§Р•РљР
+// ==========================================
+
+async function loadHistory() {
+    const container = document.getElementById('history-list');
+
+    if (!container) return;
+
+    try {
+        const payments = await familyRequest('/family/payments');
+
+        if (!payments || payments.length === 0) {
+            container.innerHTML =
+                '<p style="color: var(--gray);">РСЃС‚РѕСЂРёСЏ РїСѓСЃС‚Р°</p>';
+            return;
+        }
+
+        const history = await Promise.all(
+            payments.map(async payment => {
+                const receipts = await familyRequest(
+                    `/family/payments/${payment.id}/receipt`
+                );
+
+                return {
+                    payment,
+                    receipts: Array.isArray(receipts) ? receipts : []
+                };
+            })
+        );
+
+        container.innerHTML = history.map(({ payment, receipts }) => {
+            let receiptButton = `
+                <span style="color: var(--gray);">
+                    Р§РµРє РЅРµ РїСЂРёРєСЂРµРїР»С‘РЅ
+                </span>
+            `;
+
+            if (receipts.length > 0) {
+                const receipt = receipts[0];
+
+                if (receipt.receipt_url) {
+                    receiptButton = `
+                        <a
+                            class="btn btn-gray"
+                            href="${escapeFamilyHtml(receipt.receipt_url)}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            РћС‚РєСЂС‹С‚СЊ С‡РµРє
+                        </a>
+                    `;
+                } else if (receipt.file_path) {
+                    receiptButton = `
+                        <button
+                            class="btn btn-gray"
+                            onclick="downloadReceipt(${Number(receipt.id)})"
+                        >
+                            РЎРєР°С‡Р°С‚СЊ С‡РµРє
+                        </button>
+                    `;
+                }
+            }
+
+            return `
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 12px;
+                    border-bottom: 1px solid var(--border);
+                    gap: 12px;
+                ">
+                    <div>
+                        <div style="font-weight: bold;">
+                            РћРїР»Р°С‚Р° в„–${Number(payment.id)} вЂ”
+                            ${formatMoney(payment.amount)}
+                        </div>
+
+                        <div style="font-size: 13px; color: var(--gray);">
+                            ${formatDate(payment.created_at)}
+                        </div>
+
+                        <div style="font-size: 12px; color: var(--gray);">
+                            РЎС‚Р°С‚СѓСЃ: ${escapeFamilyHtml(payment.status)}
+                        </div>
+                    </div>
+
+                    ${receiptButton}
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РёСЃС‚РѕСЂРёРё:', err);
+
+        container.innerHTML = `
+            <p style="color: red;">
+                РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёСЃС‚РѕСЂРёСЋ РїР»Р°С‚РµР¶РµР№
+            </p>
+        `;
+    }
+}
+
+
+// ==========================================
+// РЎРљРђР§РР’РђРќРР• Р§Р•РљРђ
+// ==========================================
+
+async function downloadReceipt(receiptId) {
+    try {
+        const token = localStorage.getItem('family_token');
+
+        if (!token) {
+            throw new Error('РќРµС‚ РїРµСЂСЃРѕРЅР°Р»СЊРЅРѕРіРѕ С‚РѕРєРµРЅР° СЃРµРјСЊРё');
+        }
+
+        const response = await fetch(
+            `${API_URL}/family/receipts/${receiptId}/download`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }
+        );
+
+        if (!response.ok) {
+            let message = 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєР°С‡Р°С‚СЊ С‡РµРє';
+
+            try {
+                const data = await response.json();
+                message = data.detail || message;
+            } catch (_) {
+                // РћСЃС‚Р°РІР»СЏРµРј СЃС‚Р°РЅРґР°СЂС‚РЅРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ.
+            }
+
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const fileUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = `receipt-${receiptId}`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => URL.revokeObjectURL(fileUrl), 1000);
+
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\master.js ---
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadDashboard();
+});
+
+// ==========================================
+// РџР•Р Р•РљР›Р®Р§Р•РќРР• Р’РљР›РђР”РћРљ
+// ==========================================
+
+function switchTab(tabId) {
+    document.querySelectorAll('section[id^="tab-"]').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    document.querySelectorAll('.nav-btn').forEach(el => {
+        el.style.color = 'var(--gray)';
+        el.style.borderBottom = 'none';
+    });
+
+    const section = document.getElementById(`tab-${tabId}`);
+    const activeBtn = document.querySelector(
+        `.nav-btn[data-tab="${tabId}"]`
+    );
+
+    if (!section || !activeBtn) return;
+
+    section.style.display = 'block';
+    activeBtn.style.color = 'var(--dark)';
+    activeBtn.style.borderBottom = '3px solid var(--yellow)';
+
+    if (tabId === 'dashboard') loadDashboard();
+    if (tabId === 'schedule') loadSchedule();
+    if (tabId === 'attendance') loadAttendance();
+    if (tabId === 'families') loadFamilies();
+    if (tabId === 'finance') loadFinance();
+}
+
+
+// ==========================================
+// Р“Р›РђР’РќРђРЇ РџРђРќР•Р›Р¬
+// ==========================================
+
+async function loadDashboard() {
+    try {
+        const [lessons, families, subscriptions] = await Promise.all([
+            masterRequest('/master/lessons'),
+            masterRequest('/master/families'),
+            masterRequest('/master/subscriptions')
+        ]);
+
+        const today = new Date();
+
+        const todayLessons = lessons.filter(lesson => {
+            const date = new Date(lesson.starts_at);
+
+            return date.getFullYear() === today.getFullYear()
+                && date.getMonth() === today.getMonth()
+                && date.getDate() === today.getDate();
+        });
+
+        const childrenTotal = families.reduce((sum, family) => {
+            return sum + (family.children?.length || 0);
+        }, 0);
+
+        const endingSubs = subscriptions.filter(sub => {
+            if (!sub.is_active) return false;
+
+            const remaining = sub.total_lessons - sub.used_lessons;
+
+            const expiresSoon = sub.expires_at &&
+                new Date(sub.expires_at) <=
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+            return remaining <= 2 || expiresSoon;
+        });
+
+        document.getElementById('stat-lessons').innerText =
+            todayLessons.length;
+
+        document.getElementById('stat-children').innerText =
+            childrenTotal;
+
+        document.getElementById('stat-ending').innerText =
+            endingSubs.length;
+
+    } catch (e) {
+        showToast('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РіР»Р°РІРЅРѕР№ РїР°РЅРµР»Рё: ' + e.message, 'error');
+    }
+}
+
+
+// ==========================================
+// Р РђРЎРџРРЎРђРќРР•
+// ==========================================
+
+
+async function loadSchedule() {
+    try {
+        const lessons = await masterRequest('/master/lessons');
+        const tbody = document.getElementById('schedule-list');
+
+        if (!lessons || lessons.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4">РџРѕРєР° РЅРµС‚ СЃРѕР·РґР°РЅРЅС‹С… Р·Р°РЅСЏС‚РёР№</td>
+                </tr>
+            `;
+            return;
+        }
+
+        const lessonsWithChildren = await Promise.all(
+            lessons.map(async lesson => {
+                const children = await masterRequest(
+                    `/master/lessons/${lesson.id}/bookings`
+                );
+
+                return {
+                    ...lesson,
+                    bookedChildren: children
+                };
+            })
+        );
+
+        tbody.innerHTML = lessonsWithChildren.map(lesson => {
+            const childNames = lesson.bookedChildren
+                .map(child => child.child_name)
+                .join(', ');
+
+            return `
+                <tr>
+                    <td>${formatDate(lesson.starts_at)}</td>
+                    <td>${lesson.title}</td>
+                    <td>
+                        <strong>
+                            ${lesson.booked_count} / ${lesson.capacity}
+                        </strong>
+                        ${childNames
+                    ? `<br><small>${childNames}</small>`
+                    : '<br><small>РџРѕРєР° РЅРµС‚ Р·Р°РїРёСЃРµР№</small>'}
+                    </td>
+                    <td>${lesson.is_active ? 'РђРєС‚РёРІРЅРѕ' : 'РќРµР°РєС‚РёРІРЅРѕ'}</td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+
+async function createLesson(e) {
+    e.preventDefault();
+
+    const data = {
+        title: document.getElementById('lesson-title').value.trim(),
+        starts_at: document.getElementById('lesson-date').value,
+        duration_minutes: 60,
+        capacity: parseInt(
+            document.getElementById('lesson-capacity').value,
+            10
+        ),
+        price: 0
+    };
+
+    try {
+        await masterRequest('/master/lessons', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+
+        closeModal('modal-create-lesson');
+        document.querySelector('#modal-create-lesson form').reset();
+
+        showToast('Р—Р°РЅСЏС‚РёРµ СЃРѕР·РґР°РЅРѕ');
+
+        loadSchedule();
+        loadDashboard();
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+// ==========================================
+// РџРћРЎР•Р©РђР•РњРћРЎРўР¬
+// ==========================================
+
+async function loadAttendance() {
+    try {
+        const list = await masterRequest('/master/attendance');
+        const tbody = document.getElementById('attendance-list');
+
+        if (!list || list.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4">РџРѕРєР° РЅРµС‚ Р·Р°РїРёСЃРµР№ РЅР° Р·Р°РЅСЏС‚РёСЏ</td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = list.map(item => {
+            let statusText = 'РќРµ РѕС‚РјРµС‡РµРЅРѕ';
+            let statusClass = 'badge-gray';
+
+            if (item.status === 'attended') {
+                statusText = 'РџРѕСЃРµС‚РёР»';
+                statusClass = 'badge-green';
+            } else if (item.status === 'missed') {
+                statusText = 'РџСЂРѕРїСѓСЃС‚РёР»';
+                statusClass = 'badge-red';
+            }
+
+            return `
+                <tr>
+                    <td>${item.childName}</td>
+                    <td>${item.lessonTitle}</td>
+                    <td>
+                        <span class="badge ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn"
+                            style="padding: 6px 10px; font-size: 12px;"
+                            onclick="markAttendance(${item.id}, 'attended')">
+                            РџРѕСЃРµС‚РёР»
+                        </button>
+
+                        <button class="btn btn-gray"
+                            style="padding: 6px 10px; font-size: 12px;"
+                            onclick="markAttendance(${item.id}, 'missed')">
+                            РџСЂРѕРїСѓСЃС‚РёР»
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+async function markAttendance(id, status) {
+    try {
+        await masterRequest(`/master/bookings/${id}/attendance`, {
+            method: 'PUT',
+            body: JSON.stringify({ status })
+        });
+
+        showToast('РћС‚РјРµС‚РєР° СЃРѕС…СЂР°РЅРµРЅР°');
+
+        loadAttendance();
+        loadDashboard();
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+// ==========================================
+// РЎР•РњР¬Р Р Р”Р•РўР
+// ==========================================
+
+async function loadFamilies() {
+    try {
+        const families = await masterRequest('/master/families');
+        const tbody = document.getElementById('families-list');
+
+        if (!families || families.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3">РџРѕРєР° РЅРµС‚ РґРѕР±Р°РІР»РµРЅРЅС‹С… СЃРµРјРµР№</td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = families.map(family => `
+            <tr>
+                <td>${family.name}</td>
+                <td>
+                    ${family.children?.length
+                ? family.children.join(', ')
+                : 'Р”РµС‚Рё РЅРµ РґРѕР±Р°РІР»РµРЅС‹'}
+                </td>
+                <td>
+                    <button class="btn"
+                        style="padding: 6px 12px; font-size: 13px;"
+                        onclick="generateLink(${family.id})">
+                        Р’С‹РґР°С‚СЊ СЃСЃС‹Р»РєСѓ
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+async function createFamily(e) {
+    e.preventDefault();
+
+    const familyData = {
+        name: document.getElementById('family-name').value.trim(),
+        phone: null
+    };
+
+    const childData = {
+        first_name: document.getElementById('child-name').value.trim(),
+        last_name: null,
+        birth_date: null
+    };
+
+    try {
+        const family = await masterRequest('/master/families', {
+            method: 'POST',
+            body: JSON.stringify(familyData)
+        });
+
+        await masterRequest(`/master/families/${family.id}/children`, {
+            method: 'POST',
+            body: JSON.stringify(childData)
+        });
+
+        closeModal('modal-create-family');
+        document.querySelector('#modal-create-family form').reset();
+
+        showToast('РЎРµРјСЊСЏ Рё СЂРµР±С‘РЅРѕРє СѓСЃРїРµС€РЅРѕ РґРѕР±Р°РІР»РµРЅС‹');
+
+        loadFamilies();
+        loadDashboard();
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+// ==========================================
+// РџР•Р РЎРћРќРђР›Р¬РќР«Р• РЎРЎР«Р›РљР
+// ==========================================
+
+async function generateLink(familyId) {
+    try {
+        const result = await masterRequest(
+            `/master/families/${familyId}/link`,
+            { method: 'POST' }
+        );
+
+        document.getElementById('family-link-input').value =
+            `${window.location.origin}/family.html?token=${result.access_token}`;
+
+        openModal('modal-show-link');
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+function copyLinkAndClose() {
+    const input = document.getElementById('family-link-input');
+
+    input.select();
+    document.execCommand('copy');
+
+    closeModal('modal-show-link');
+    showToast('РЎСЃС‹Р»РєР° СЃРєРѕРїРёСЂРѕРІР°РЅР°');
+}
+
+
+// ==========================================
+// РђР‘РћРќР•РњР•РќРўР« Р РџР›РђРўР•Р–Р
+// ==========================================
+
+async function loadFinance() {
+    try {
+        const [payments, subscriptions, families] = await Promise.all([
+            masterRequest('/master/payments'),
+            masterRequest('/master/subscriptions'),
+            masterRequest('/master/families')
+        ]);
+
+        renderPayments(payments);
+        renderSubscriptions(subscriptions, families);
+        fillSubscriptionFamilies(families);
+
+    } catch (e) {
+        showToast('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё С„РёРЅР°РЅСЃРѕРІ: ' + e.message, 'error');
+    }
+}
+
+
+function renderPayments(payments) {
+    const tbody = document.getElementById('finance-list');
+
+    if (!payments || payments.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5">РџРѕРєР° РЅРµС‚ РїР»Р°С‚РµР¶РµР№</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = payments.map(payment => `
+        <tr>
+            <td>РЎРµРјСЊСЏ в„–${payment.family_id}</td>
+            <td>
+                ${payment.subscription_id
+            ? `РђР±РѕРЅРµРјРµРЅС‚ в„–${payment.subscription_id}`
+            : 'вЂ”'}
+            </td>
+            <td><b>${formatMoney(payment.amount)}</b></td>
+            <td>${payment.status}</td>
+            <td>${formatDate(payment.created_at)}</td>
+        </tr>
+    `).join('');
+}
+
+
+function renderSubscriptions(subscriptions, families) {
+    const tbody = document.getElementById('subscriptions-list');
+
+    if (!subscriptions || subscriptions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6">РџРѕРєР° РЅРµС‚ Р°Р±РѕРЅРµРјРµРЅС‚РѕРІ</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const familyNames = {};
+
+    families.forEach(family => {
+        familyNames[family.id] = family.name;
+    });
+
+    tbody.innerHTML = subscriptions.map(sub => {
+        const remaining = sub.total_lessons - sub.used_lessons;
+
+        return `
+            <tr>
+                <td>${sub.id}</td>
+                <td>${familyNames[sub.family_id] || `РЎРµРјСЊСЏ в„–${sub.family_id}`}</td>
+                <td>${sub.title}</td>
+                <td>${remaining} РёР· ${sub.total_lessons}</td>
+                <td>${formatMoney(sub.price)}</td>
+                <td>${sub.expires_at ? formatDate(sub.expires_at) : 'Р‘РµР· СЃСЂРѕРєР°'}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+
+function fillSubscriptionFamilies(families) {
+    const select = document.getElementById('subscription-family');
+
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Р’С‹Р±РµСЂРёС‚Рµ СЃРµРјСЊСЋ</option>';
+
+    families.forEach(family => {
+        const option = document.createElement('option');
+        option.value = family.id;
+        option.textContent = family.name;
+        select.appendChild(option);
+    });
+}
+
+
+async function createSubscription(e) {
+    e.preventDefault();
+
+    const expiresValue = document.getElementById(
+        'subscription-expires'
+    ).value;
+
+    const data = {
+        family_id: parseInt(
+            document.getElementById('subscription-family').value,
+            10
+        ),
+        title: document.getElementById('subscription-title').value.trim(),
+        total_lessons: parseInt(
+            document.getElementById('subscription-total').value,
+            10
+        ),
+        price: parseFloat(
+            document.getElementById('subscription-price').value
+        ),
+        expires_at: expiresValue || null
+    };
+
+    try {
+        await masterRequest('/master/subscriptions', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+
+        closeModal('modal-create-subscription');
+
+        document.querySelector(
+            '#modal-create-subscription form'
+        ).reset();
+
+        showToast('РђР±РѕРЅРµРјРµРЅС‚ СѓСЃРїРµС€РЅРѕ СЃРѕР·РґР°РЅ');
+
+        loadFinance();
+        loadDashboard();
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\js\ui.js ---
+
+function showToast(message, type = 'success') {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `toast show ${type === 'error' ? 'error' : ''}`;
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function formatDate(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function formatMoney(amount) {
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount);
+}
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\book.html ---
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>РЇСЃРЅР° | Р—Р°РїРёСЃСЊ РЅР° Р·Р°РЅСЏС‚РёРµ</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <header style="background: white; padding: 20px; display: flex; align-items: center; justify-content: center; border-bottom: 4px solid var(--yellow);">
+        <img src="img/yasna-logo.jpg" alt="РЇСЃРЅР°" style="height: 60px; border-radius: 8px;">
+    </header>
+
+    <main style="max-width: 600px; margin: 30px auto; padding: 0 15px;">
+        
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="margin-bottom: 10px;">Р—Р°РїРёСЃСЊ РІ РјР°СЃС‚РµСЂСЃРєСѓСЋ</h1>
+            <p style="color: var(--gray);">Р’С‹Р±РµСЂРёС‚Рµ РїРѕРґС…РѕРґСЏС‰РµРµ РІСЂРµРјСЏ Рё Р·Р°РїРёС€РёС‚Рµ СЂРµР±РµРЅРєР°</p>
+        </div>
+
+        <div id="lessons-container" style="display: flex; flex-direction: column; gap: 15px;"></div>
+
+    </main>
+
+    <div class="modal-overlay" id="modal-book">
+        <div class="modal-content">
+            <h3>РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ Р·Р°РїРёСЃРё</h3>
+            <p style="color: var(--gray); font-size: 14px;" id="book-lesson-info">Р’С‹Р±РµСЂРёС‚Рµ СЂРµР±РµРЅРєР°:</p>
+            <div id="book-children-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;"></div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-block" id="btn-confirm-book" onclick="confirmBooking()">Р—Р°РїРёСЃР°С‚СЊСЃСЏ</button>
+                <button class="btn btn-gray btn-block" onclick="closeModal('modal-book')">РћС‚РјРµРЅР°</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-public">
+        <div class="modal-content" style="text-align: center;">
+            <h3>РўСЂРµР±СѓРµС‚СЃСЏ Р°РІС‚РѕСЂРёР·Р°С†РёСЏ</h3>
+            <p style="color: var(--gray); margin-bottom: 20px;">Р§С‚РѕР±С‹ Р·Р°РїРёСЃР°С‚СЊ СЂРµР±РµРЅРєР°, РІР°Рј РЅСѓР¶РЅР° РїРµСЂСЃРѕРЅР°Р»СЊРЅР°СЏ СЃСЃС‹Р»РєР° РѕС‚ РјР°СЃС‚РµСЂР°.</p>
+            <button class="btn btn-block" onclick="closeModal('modal-public'); window.location.href='family.html'">РЇ РїРѕ СЃСЃС‹Р»РєРµ</button>
+        </div>
+    </div>
+
+    <script src="js/ui.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/book.js"></script>
+</body>
+</html>
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\family.html ---
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>РЇСЃРЅР° | РљР°Р±РёРЅРµС‚ СЂРѕРґРёС‚РµР»СЏ</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body style="background: var(--bg);">
+
+    <header style="background: white; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="img/yasna-logo.jpg" alt="РЇСЃРЅР°" style="height: 40px; border-radius: 8px;">
+            <h1 style="font-size: 18px; margin: 0;" id="family-title">Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="position: relative; cursor: pointer;" onclick="showToast('РЈ РІР°СЃ 1 РЅРѕРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ')">
+                <span style="font-size: 24px;">рџ””</span>
+                <span style="position: absolute; top: -5px; right: -5px; background: red; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold;">1</span>
+            </div>
+        </div>
+    </header>
+
+    <main style="max-width: 800px; margin: 20px auto; padding: 0 15px;">
+        
+        <div class="card" style="margin-bottom: 20px; padding: 15px 20px;">
+            <div style="color: var(--gray); font-size: 14px; margin-bottom: 10px;">РњРѕРё РґРµС‚Рё:</div>
+            <div id="children-tabs" style="display: flex; gap: 10px;"></div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 20px;">
+            <div class="card" style="text-align: center; border-top: 4px solid var(--yellow);">
+                <div style="color: var(--gray); font-size: 14px;">РћСЃС‚Р°С‚РѕРє Р·Р°РЅСЏС‚РёР№</div>
+                <div style="font-size: 36px; font-weight: bold; color: var(--yellow-dark);" id="balance-lessons">0</div>
+            </div>
+            <div class="card" style="text-align: center; border-top: 4px solid var(--dark);">
+                <div style="color: var(--gray); font-size: 14px;">Р”РµРЅРµР¶РЅС‹Р№ Р±Р°Р»Р°РЅСЃ</div>
+                <div style="font-size: 32px; font-weight: bold;" id="balance-money">0 в‚Ѕ</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+            <h3 style="margin-top: 0; margin-bottom: 15px;">Р‘Р»РёР¶Р°Р№С€РёРµ Р·Р°РЅСЏС‚РёСЏ</h3>
+            <div id="upcoming-lessons" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="window.location.href='book.html'">Р—Р°РїРёСЃР°С‚СЊСЃСЏ РЅР° Р·Р°РЅСЏС‚РёРµ</button>
+                <button class="btn btn-gray" onclick="showToast('РџРµСЂРµС…РѕРґ Рє РѕРїР»Р°С‚Рµ')">РћРїР»Р°С‚РёС‚СЊ Р°Р±РѕРЅРµРјРµРЅС‚</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-top: 0; margin-bottom: 15px;">РСЃС‚РѕСЂРёСЏ Рё С‡РµРєРё</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;" id="history-list"></div>
+        </div>
+
+    </main>
+
+    <script src="js/ui.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/family.js"></script>
+</body>
+</html>
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\index.html ---
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=book.html">
+    <title>РЇСЃРЅР° | Р—Р°РїРёСЃСЊ РЅР° Р·Р°РЅСЏС‚РёСЏ</title>
+</head>
+<body>
+    <p style="text-align: center; margin-top: 50px;">РџРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёРµ...</p>
+</body>
+</html>
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\master-login.html ---
+
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Р’С…РѕРґ | РЇСЃРЅР°</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #F9FAFB;">
+
+    <div class="card" style="width: 100%; max-width: 400px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="img/yasna-logo.jpg" alt="РЇСЃРЅР°" style="height: 60px; border-radius: 8px;">
+            <h2 style="margin-top: 15px;">Р’С…РѕРґ РґР»СЏ РјР°СЃС‚РµСЂР°</h2>
+        </div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Р›РѕРіРёРЅ</label>
+                <input type="text" id="login" class="form-input" required placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label>РџР°СЂРѕР»СЊ</label>
+                <input type="password" id="password" class="form-input" required placeholder="вЂўвЂўвЂўвЂўвЂўвЂў">
+            </div>
+            <button type="submit" class="btn btn-block">Р’РѕР№С‚Рё РІ РїР°РЅРµР»СЊ</button>
+        </form>
+    </div>
+
+    <script src="js/ui.js"></script>
+    <script>
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:8000/api/master/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'РћС€РёР±РєР° РІС…РѕРґР°');
+                }
+
+                localStorage.setItem('master_token', data.access_token);
+                window.location.href = 'master.html';
+
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
+
+    </script>
+</body>
+
+</html>
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\master.html ---
+
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>РЇСЃРЅР° | РџР°РЅРµР»СЊ РјР°СЃС‚РµСЂР°</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <header
+        style="background: white; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 50;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <img src="img/yasna-logo.jpg" alt="РЇСЃРЅР°" style="height: 45px; border-radius: 8px;">
+            <h1 style="font-size: 20px; margin: 0;">РџР°РЅРµР»СЊ СѓРїСЂР°РІР»РµРЅРёСЏ</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span style="color: var(--gray); font-size: 14px;">РњР°СЃС‚РµСЂ: Р”РµРЅРёСЃ</span>
+            <button class="btn btn-gray" style="padding: 8px 16px;" onclick="logout()">Р’С‹Р№С‚Рё</button>
+        </div>
+    </header>
+
+    <nav
+        style="background: white; padding: 0 20px; display: flex; gap: 20px; border-bottom: 1px solid var(--border); overflow-x: auto;">
+        <button class="nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')"
+            style="background: none; border: none; padding: 15px 5px; cursor: pointer; font-weight: 600; color: var(--dark); border-bottom: 3px solid var(--yellow); white-space: nowrap;">Р“Р»Р°РІРЅР°СЏ</button>
+        <button class="nav-btn" data-tab="schedule" onclick="switchTab('schedule')"
+            style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">Р Р°СЃРїРёСЃР°РЅРёРµ</button>
+        <button class="nav-btn" data-tab="attendance" onclick="switchTab('attendance')"
+            style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">РџРѕСЃРµС‰Р°РµРјРѕСЃС‚СЊ</button>
+        <button class="nav-btn" data-tab="families" onclick="switchTab('families')"
+            style="background: none; border: none; padding: 15px 5px; cursor: pointer; color: var(--gray); white-space: nowrap;">РЎРµРјСЊРё</button>
+        <button class="nav-btn" data-tab="finance" onclick="switchTab('finance')"
+            style="background: none; border: none; cursor: pointer; padding: 15px 5px; color: var(--gray); white-space: nowrap;">РђР±РѕРЅРµРјРµРЅС‚С‹
+            Рё РћРїР»Р°С‚С‹</button>
+    </nav>
+
+    <main style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
+
+        <section id="tab-dashboard">
+            <h2 style="margin-bottom: 20px; font-size: 22px;">РЎРІРѕРґРєР° РЅР° СЃРµРіРѕРґРЅСЏ</h2>
+            <div class="grid">
+                <div class="stat-card">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Р—Р°РЅСЏС‚РёР№ СЃРµРіРѕРґРЅСЏ</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-lessons">0</div>
+                </div>
+                <div class="stat-card">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Р—Р°РїРёСЃР°РЅРѕ РґРµС‚РµР№</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-children">0</div>
+                </div>
+                <div class="stat-card red">
+                    <div style="color: var(--gray); font-size: 14px; margin-bottom: 5px;">Р—Р°РєР°РЅС‡РёРІР°РµС‚СЃСЏ Р°Р±РѕРЅРµРјРµРЅС‚</div>
+                    <div style="font-size: 30px; font-weight: bold;" id="stat-ending">0</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-schedule" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">Р Р°СЃРїРёСЃР°РЅРёРµ</h2>
+                <button class="btn" onclick="openModal('modal-create-lesson')">+ РЎРѕР·РґР°С‚СЊ Р·Р°РЅСЏС‚РёРµ</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Р”Р°С‚Р° Рё РІСЂРµРјСЏ</th>
+                            <th>РќР°Р·РІР°РЅРёРµ</th>
+                            <th>РњРµСЃС‚</th>
+                            <th>РЎС‚Р°С‚СѓСЃ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-attendance" style="display: none;">
+            <h2 style="font-size: 22px; margin-bottom: 20px;">Р–СѓСЂРЅР°Р» РїРѕСЃРµС‰Р°РµРјРѕСЃС‚Рё</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Р РµР±РµРЅРѕРє</th>
+                            <th>Р—Р°РЅСЏС‚РёРµ</th>
+                            <th>РЎС‚Р°С‚СѓСЃ</th>
+                            <th>Р”РµР№СЃС‚РІРёРµ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendance-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-families" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">РЎРµРјСЊРё Рё РґРµС‚Рё</h2>
+                <button class="btn" onclick="openModal('modal-create-family')">+ Р”РѕР±Р°РІРёС‚СЊ СЃРµРјСЊСЋ</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>РЎРµРјСЊСЏ</th>
+                            <th>Р”РµС‚Рё</th>
+                            <th>РЎСЃС‹Р»РєР° РґР»СЏ РІС…РѕРґР°</th>
+                        </tr>
+                    </thead>
+                    <tbody id="families-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-finance" style="display: none;">
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 22px; margin: 0;">РђР±РѕРЅРµРјРµРЅС‚С‹</h2>
+                <button class="btn" onclick="openModal('modal-create-subscription')">
+                    + РЎРѕР·РґР°С‚СЊ Р°Р±РѕРЅРµРјРµРЅС‚
+                </button>
+            </div>
+
+            <div class="table-wrap" style="margin-bottom: 35px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>в„–</th>
+                            <th>РЎРµРјСЊСЏ</th>
+                            <th>РќР°Р·РІР°РЅРёРµ</th>
+                            <th>РћСЃС‚Р°С‚РѕРє Р·Р°РЅСЏС‚РёР№</th>
+                            <th>РЎС‚РѕРёРјРѕСЃС‚СЊ</th>
+                            <th>Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subscriptions-list"></tbody>
+                </table>
+            </div>
+
+            <h2 style="font-size: 22px; margin-bottom: 20px;">РџР»Р°С‚РµР¶Рё</h2>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>РЎРµРјСЊСЏ</th>
+                            <th>РђР±РѕРЅРµРјРµРЅС‚</th>
+                            <th>РЎСѓРјРјР°</th>
+                            <th>РЎС‚Р°С‚СѓСЃ РѕРїР»Р°С‚С‹</th>
+                            <th>Р”Р°С‚Р°</th>
+                        </tr>
+                    </thead>
+                    <tbody id="finance-list"></tbody>
+                </table>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- РЎРѕР·РґР°РЅРёРµ Р·Р°РЅСЏС‚РёСЏ -->
+    <div class="modal-overlay" id="modal-create-lesson">
+        <div class="modal-content">
+            <h3>РќРѕРІРѕРµ Р·Р°РЅСЏС‚РёРµ</h3>
+            <form onsubmit="createLesson(event)">
+                <div class="form-group">
+                    <label>РќР°Р·РІР°РЅРёРµ</label>
+                    <input type="text" class="form-input" id="lesson-title" required placeholder="РЎС‚РѕР»СЏСЂРєР° (РќРѕРІРёС‡РєРё)">
+                </div>
+                <div class="form-group">
+                    <label>Р”Р°С‚Р° Рё РІСЂРµРјСЏ</label>
+                    <input type="datetime-local" class="form-input" id="lesson-date" required>
+                </div>
+                <div class="form-group">
+                    <label>РљРѕР»РёС‡РµСЃС‚РІРѕ РјРµСЃС‚</label>
+                    <input type="number" class="form-input" id="lesson-capacity" required value="6" min="1">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-block">РЎРѕР·РґР°С‚СЊ</button>
+                    <button type="button" class="btn btn-gray btn-block"
+                        onclick="closeModal('modal-create-lesson')">РћС‚РјРµРЅР°</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- РЎРѕР·РґР°РЅРёРµ СЃРµРјСЊРё -->
+    <div class="modal-overlay" id="modal-create-family">
+        <div class="modal-content">
+            <h3>РќРѕРІР°СЏ СЃРµРјСЊСЏ</h3>
+            <form onsubmit="createFamily(event)">
+                <div class="form-group">
+                    <label>РРјСЏ СЂРѕРґРёС‚РµР»СЏ</label>
+                    <input type="text" class="form-input" id="family-name" required placeholder="РђРЅРЅР° РРІР°РЅРѕРІР°">
+                </div>
+                <div class="form-group">
+                    <label>РРјСЏ СЂРµР±РµРЅРєР°</label>
+                    <input type="text" class="form-input" id="child-name" required placeholder="РњРёС€Р°">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-block">РЎРѕР·РґР°С‚СЊ</button>
+                    <button type="button" class="btn btn-gray btn-block"
+                        onclick="closeModal('modal-create-family')">РћС‚РјРµРЅР°</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- РЎРѕР·РґР°РЅРёРµ Р°Р±РѕРЅРµРјРµРЅС‚Р° -->
+    <div class="modal-overlay" id="modal-create-subscription">
+        <div class="modal-content">
+            <h3>РќРѕРІС‹Р№ Р°Р±РѕРЅРµРјРµРЅС‚</h3>
+
+            <form onsubmit="createSubscription(event)">
+
+                <div class="form-group">
+                    <label>РЎРµРјСЊСЏ</label>
+                    <select class="form-input" id="subscription-family" required>
+                        <option value="">РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ СЃРµРјСЊСЋ</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>РќР°Р·РІР°РЅРёРµ Р°Р±РѕРЅРµРјРµРЅС‚Р°</label>
+                    <input type="text" class="form-input" id="subscription-title" required
+                        placeholder="РќР°РїСЂРёРјРµСЂ, 8 Р·Р°РЅСЏС‚РёР№">
+                </div>
+
+                <div class="form-group">
+                    <label>РљРѕР»РёС‡РµСЃС‚РІРѕ Р·Р°РЅСЏС‚РёР№</label>
+                    <input type="number" class="form-input" id="subscription-total" required min="1" value="8">
+                </div>
+
+                <div class="form-group">
+                    <label>РЎС‚РѕРёРјРѕСЃС‚СЊ</label>
+                    <input type="number" class="form-input" id="subscription-price" required min="0" step="0.01"
+                        placeholder="5000">
+                </div>
+
+                <div class="form-group">
+                    <label>Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)</label>
+                    <input type="datetime-local" class="form-input" id="subscription-expires">
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-block">РЎРѕР·РґР°С‚СЊ</button>
+                    <button type="button" class="btn btn-gray btn-block"
+                        onclick="closeModal('modal-create-subscription')">РћС‚РјРµРЅР°</button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- РЎСЃС‹Р»РєР° СЃРµРјСЊРё -->
+    <div class="modal-overlay" id="modal-show-link">
+        <div class="modal-content">
+            <h3>РЎСЃС‹Р»РєР° РґР»СЏ СЂРѕРґРёС‚РµР»СЏ</h3>
+            <p style="color: #EF4444; font-size: 14px; font-weight: bold;">РЎРєРѕРїРёСЂСѓР№С‚Рµ РµС‘ СЃРµР№С‡Р°СЃ! РџРѕРІС‚РѕСЂРЅРѕ РѕРЅР° РЅРµ
+                РѕС‚РѕР±СЂР°Р·РёС‚СЃСЏ.</p>
+            <input type="text" class="form-input" id="family-link-input" readonly
+                style="margin-bottom: 15px; background: #F3F4F6;">
+            <button class="btn btn-block" onclick="copyLinkAndClose()">РЎРєРѕРїРёСЂРѕРІР°С‚СЊ Рё Р·Р°РєСЂС‹С‚СЊ</button>
+        </div>
+    </div>
+
+    <script src="js/ui.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/master.js"></script>
+
+</body>
+
+</html>
+
+--- Файл: C:\Users\макс\Desktop\yasna_main\frontend\README.md ---
+
+# yasna-workshop-hackathon
+РџСЂРѕРµРєС‚ РґР»СЏ С…Р°РєР°С‚РѕРЅР° Р¦РёС„СЂРѕРІРѕР№ РІС‹Р·РѕРІ
+

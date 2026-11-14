@@ -1,0 +1,19 @@
+name: Deploy to Hugging Face
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Push to HF
+        uses: huggingface/hub-sync@v0.2.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: k0nsaf/yasna-site
+          hf_token: ${{ secrets.HF_TOKEN }}
+          space_sdk: static
+          subdirectory: frontend
